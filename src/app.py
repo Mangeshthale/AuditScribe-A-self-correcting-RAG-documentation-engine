@@ -419,7 +419,7 @@ html, body, [class*="css"] {
 # ── Session state ─────────────────────────────────────────────────────────────
 for key, default in [
     ("faith_score", None), ("rel_score", None),
-    ("latency", None), ("report", None), ("ingest_log", [])
+    ("latency", None), ("report", None), ("ingest_log", []), ("history", [])
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -578,6 +578,14 @@ if run_btn:
 
         total_time = round(time.time() - start_time, 2)
 
+        st.session_state.history.append({
+            "question": query,
+            "report": report,
+            "faith": float(scores.get("faithfulness", 0.0)),
+            "rel": float(scores.get("answer_relevancy", 0.0)),
+            "latency": total_time,
+        })
+
         st.session_state.faith_score = float(scores.get("faithfulness", 0.0))
         st.session_state.rel_score   = float(scores.get("answer_relevancy", 0.0))
         st.session_state.latency     = total_time
@@ -585,7 +593,27 @@ if run_btn:
 
         st.rerun()
 
-
+# ── History ───────────────────────────────────────────────────────────────────
+if st.session_state.history:
+    for i, item in enumerate(reversed(st.session_state.history[:-1])):  # all but latest
+        with st.expander(f"Q: {item['question'][:80]}{'…' if len(item['question']) > 80 else ''}", expanded=False):
+            st.markdown(str(item["report"]))
+            st.markdown(f"""
+            <div class="scores-wrap">
+                <div class="scores-title">Quality Scores</div>
+                <div class="score-row">
+                    <div class="score-name">Faithfulness</div>
+                    <div class="score-track"><div class="score-fill" style="width:{item['faith']*100:.0f}%;background:{bar_color(item['faith'])};"></div></div>
+                    <div class="score-num" style="color:{bar_color(item['faith'])}">{item['faith']:.2f}</div>
+                </div>
+                <div class="score-row">
+                    <div class="score-name">Answer Relevancy</div>
+                    <div class="score-track"><div class="score-fill" style="width:{item['rel']*100:.0f}%;background:{bar_color(item['rel'])};"></div></div>
+                    <div class="score-num" style="color:{bar_color(item['rel'])}">{item['rel']:.2f}</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
 # ── Result display ─────────────────────────────────────────────────────────────
 if st.session_state.report:
     f = st.session_state.faith_score
