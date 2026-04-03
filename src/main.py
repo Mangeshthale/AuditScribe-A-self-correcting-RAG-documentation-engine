@@ -15,7 +15,8 @@ from eval.evaluator import run_evals
 
 
 def run_sentinel(user_query: str):
-    print(f"\n🚀 Starting Sentinel for: {user_query}")
+    print(f"\n🚀 Starting AuditScribe for: {user_query}")
+    time.sleep(3)
     
     # Step 1: Reasoning Loop (LangGraph)
     # This finds the info and self-corrects if needed
