@@ -13,7 +13,7 @@ from agents.tools import get_retriever, get_web_search_tool
 # It reads TAVILY_API_KEY at call time, so keep it inside retrieve()
 
 llm = ChatGroq(
-    model="llama-3.1-8b-instant",
+    model="llama-3.3-70b-versatile",
     api_key=os.getenv("GROQ_API_KEY"),
     temperature=0
 )
