@@ -10,7 +10,7 @@ from .tasks import get_verification_tasks
 # Removed unused imports: ChatGroq (not needed, crewai uses its own LLM wrapper), Process
 
 groq_llm = LLM(
-    model="groq/llama-3.1-8b-instant",
+    model="groq/llama-3.3-70b-versatile",
     api_key=os.getenv("GROQ_API_KEY"),
     temperature=0.3  # lowered from 0.5 — less creative drift = more faithful output
 )
