@@ -7,7 +7,7 @@ langchain-text-splitters
 langchain-tavily
 langgraph
 crewai
-ragas
+ragas==0.1.21
 datasets
 chromadb
 sentence-transformers
