@@ -17,3 +17,4 @@ streamlit
 groq
 pypdf
 beautifulsoup4
+uvloop==0.0.0; sys_platform == "never"
