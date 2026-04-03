@@ -3,14 +3,14 @@ import os
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
-
 load_dotenv()
 from langgraph.graph import StateGraph, END
 from typing import TypedDict, List
 from utils.rate_limit import groq_retry_decorator
-# AFTER
 from agents.tools import get_retriever, get_web_search_tool
-web_search_tool = get_web_search_tool()
+
+# ── DO NOT instantiate get_web_search_tool() here at module level ──
+# It reads TAVILY_API_KEY at call time, so keep it inside retrieve()
 
 llm = ChatGroq(
     model="llama-3.1-8b-instant",
@@ -31,7 +31,6 @@ class AgentState(TypedDict):
     documents: List[str]
     iterations: int
 
-
 def retrieve(state):
     print("---RETRIEVING---")
     retriever = get_retriever()
@@ -41,8 +40,8 @@ def retrieve(state):
     # If vector DB returns nothing useful, fall back to Tavily web search
     if not chunks or all(len(c.strip()) < 50 for c in chunks):
         print("---VECTOR DB EMPTY, FALLING BACK TO WEB SEARCH---")
-        web_results = web_search_tool.invoke(state["question"])
-        # Tavily returns a string or list depending on version
+        # Instantiated here — TAVILY_API_KEY is guaranteed to be in env by now
+        web_results = get_web_search_tool().invoke(state["question"])
         if isinstance(web_results, list):
             chunks = [r.get("content", "") for r in web_results]
         else:
@@ -50,13 +49,10 @@ def retrieve(state):
 
     return {"documents": chunks, "iterations": state["iterations"] + 1}
 
-
 def grade_documents(state):
-    # Simple relevance gate: if we have docs, generate; else retry once
     if state["documents"] and state["iterations"] < 2:
         return "generate"
-    return "generate"  # always generate; extend with real grading if needed
-
+    return "generate"
 
 @groq_retry_decorator
 def call_llm(state):
@@ -65,12 +61,10 @@ def call_llm(state):
     response = chain.invoke({"context": context, "question": state["question"]})
     return response.content
 
-
 def generate(state):
     print("---GENERATING---")
     answer = call_llm(state)
     return {"generation": answer}
-
 
 workflow = StateGraph(AgentState)
 workflow.add_node("retrieve", retrieve)
@@ -80,5 +74,4 @@ workflow.add_conditional_edges("retrieve", grade_documents, {
     "generate": "generate"
 })
 workflow.add_edge("generate", END)
-
 app = workflow.compile()
