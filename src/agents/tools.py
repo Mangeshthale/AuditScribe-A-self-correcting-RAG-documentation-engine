@@ -24,4 +24,5 @@ def get_retriever():
 
 
 # Used as fallback in graph.py when vector DB has no relevant results
-web_search_tool = TavilySearch()
+def get_web_search_tool():
+    return TavilySearch()
