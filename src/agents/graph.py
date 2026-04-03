@@ -8,7 +8,7 @@ load_dotenv()
 from langgraph.graph import StateGraph, END
 from typing import TypedDict, List
 from utils.rate_limit import groq_retry_decorator
-from agents.tools import get_retriever, web_search_tool
+from agents.tools import get_retriever, get_web_search_tool()
 
 llm = ChatGroq(
     model="llama-3.1-8b-instant",
