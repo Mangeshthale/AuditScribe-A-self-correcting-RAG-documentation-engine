@@ -1,4 +1,11 @@
 # src/eval/evaluator.py
+import asyncio
+import sys
+
+# nest_asyncio (used by ragas) can't patch uvloop.
+# Force the standard asyncio event loop on all platforms.
+if sys.platform != "win32":
+    asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
 import time
 import os
 from ragas import evaluate
