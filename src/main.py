@@ -1,6 +1,13 @@
 import os
 from dotenv import load_dotenv
 load_dotenv()
+try:
+    import streamlit as st
+    for key in ["GROQ_API_KEY", "TAVILY_API_KEY"]:
+        if not os.getenv(key) and key in st.secrets:
+            os.environ[key] = st.secrets[key]
+except Exception:
+    pass
 from agents.graph import app as reasoning_graph
 from crew.agents import run_verification_crew
 from eval.evaluator import run_evals
