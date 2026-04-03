@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 def groq_retry_decorator(func):
     return retry(
         stop=stop_after_attempt(5),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
+        wait=wait_exponential(multiplier=1, min=2, max=60),
         retry=retry_if_exception_type(RateLimitError),
         before_sleep=lambda retry_state: logger.warning(
             f"⚠️ Rate limit hit. Retrying in {retry_state.next_action.sleep} seconds..."
