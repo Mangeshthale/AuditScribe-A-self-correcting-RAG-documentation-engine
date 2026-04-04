@@ -89,7 +89,7 @@ html, body, [class*="css"] {
 .sb-sub {
     font-family: 'DM Mono', monospace;
     font-size: 0.6rem;
-    color: var(--sb-border) !important;
+    color: #ffffff !important;
     text-transform: uppercase;
     letter-spacing: 0.14em;
     margin-top: 5px;
