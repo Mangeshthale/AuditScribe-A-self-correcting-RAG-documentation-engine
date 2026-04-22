@@ -19,10 +19,21 @@ llm = ChatGroq(
 )
 
 GENERATE_PROMPT = ChatPromptTemplate.from_template(
-    "You are a senior software engineer. Answer the question using ONLY the context below.\n\n"
-    "Context:\n{context}\n\n"
-    "Question: {question}\n\n"
-    "Give a concise, accurate technical answer."
+    "You are a senior software engineer and technical assistant.\n\n"
+    "## Instructions\n"
+    "- Answer the question using ONLY the information provided in the context below.\n"
+    "- Do NOT use any prior knowledge, assumptions, or information outside the given context.\n"
+    "- If the context does not contain enough information to answer the question confidently, "
+    "respond with exactly: 'NOT_FOUND_IN_DOCS' — do not guess or fabricate an answer.\n"
+    "- If 'NOT_FOUND_IN_DOCS' is returned, a web search (Tavily) will be triggered automatically as a fallback.\n"
+    "- Be concise, precise, and technical. Avoid filler phrases like 'Based on the context...'.\n"
+    "- If the answer is partial (some info found, some missing), share what you found "
+    "and clearly flag the gaps.\n\n"
+    "## Context (from attached documents)\n"
+    "{context}\n\n"
+    "## Question\n"
+    "{question}\n\n"
+    "## Answer"
 )
 
 class AgentState(TypedDict):
