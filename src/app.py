@@ -508,7 +508,7 @@ with st.sidebar:
     <div class="sb-stack">
     Groq · llama-3.1-8b-instant<br>
     LangGraph · CrewAI<br>
-    Ragas · BGE-M3<br>
+    Ragas · bge-large-en-v1.5<br>
     ChromaDB · Streamlit
     </div>
     """, unsafe_allow_html=True)
@@ -544,7 +544,7 @@ if run_btn:
         pipeline_ph = st.empty()
 
         STEPS = [
-            ("🔍", "Retrieving Context",   "LangGraph · BGE-M3 vector search · Tavily fallback"),
+            ("🔍", "Retrieving Context",   "LangGraph · bge-large-en-v1.5 vector search · Tavily fallback"),
             ("⚖️", "Multi-Agent Audit",     "Critic validates accuracy · Writer formats output"),
             ("📊", "Evaluating Quality",    "Ragas · Faithfulness + Relevancy scoring"),
         ]
