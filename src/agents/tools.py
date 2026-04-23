@@ -11,7 +11,7 @@ from functools import lru_cache
 @lru_cache(maxsize=1)
 def get_embeddings():
     """Cached BGE-M3 embeddings — loads once at startup, reused everywhere."""
-    return HuggingFaceEmbeddings(model_name="BAAI/bge-m3")
+    return HuggingFaceEmbeddings(model_name="BAAI/bge-large-en-v1.5")
 
 
 def get_retriever():
