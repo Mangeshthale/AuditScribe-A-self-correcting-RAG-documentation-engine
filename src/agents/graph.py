@@ -75,14 +75,36 @@ def call_llm(state):
 def generate(state):
     print("---GENERATING---")
     answer = call_llm(state)
-    return {"generation": answer}
+    return {"generation": answer, "documents": state["documents"]}
 
+# Add this new node
+def web_search_fallback(state):
+    print("---NOT FOUND IN DOCS, FALLING BACK TO WEB SEARCH---")
+    web_results = get_web_search_tool().invoke(state["question"])
+    if isinstance(web_results, list):
+        chunks = [r.get("content", "") for r in web_results]
+    else:
+        chunks = [str(web_results)]
+    return {"documents": chunks}
+
+# Add routing after generate
+def route_after_generate(state):
+    if "NOT_FOUND_IN_DOCS" in state["generation"] and state["iterations"] < 2:
+        return "web_search"
+    return "end"
+
+# Update workflow
 workflow = StateGraph(AgentState)
 workflow.add_node("retrieve", retrieve)
 workflow.add_node("generate", generate)
+workflow.add_node("web_search", web_search_fallback)
 workflow.set_entry_point("retrieve")
 workflow.add_conditional_edges("retrieve", grade_documents, {
     "generate": "generate"
 })
-workflow.add_edge("generate", END)
+workflow.add_conditional_edges("generate", route_after_generate, {
+    "web_search": "web_search",
+    "end": END
+})
+workflow.add_edge("web_search", "generate")  # re-generate with web context
 app = workflow.compile()
