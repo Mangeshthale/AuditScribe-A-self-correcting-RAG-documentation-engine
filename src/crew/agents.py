@@ -13,7 +13,7 @@ critic_llm = LLM(
 )
 
 writer_llm = LLM(
-    model="groq/openai/gpt-oss-120b",
+    model="llama-3.1-8b-instant",
     api_key=os.getenv("GROQ_API_KEY"),
     temperature=0.0  
 )
