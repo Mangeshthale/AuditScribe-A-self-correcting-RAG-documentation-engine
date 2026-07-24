@@ -58,7 +58,7 @@ _groq_llm = LangchainLLMWrapper(
         model="llama-3.3-70b-versatile",
         api_key=os.getenv("GROQ_API_KEY"),
         temperature=0,
-        max_tokens=2048
+        max_tokens=4096
     )
 )
 _embeddings = LangchainEmbeddingsWrapper(get_embeddings())
