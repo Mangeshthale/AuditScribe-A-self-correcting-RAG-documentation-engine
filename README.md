@@ -51,7 +51,7 @@ LangGraph State Machine
 - **Multi-agent verification** using CrewAI - Critic agent flags hallucinations, Writer agent generates clean Markdown documentation
 - **Real-time quality scoring** via Ragas - every query is evaluated for Faithfulness and Answer Relevancy at inference time
 - **BAAI/bge-en-large-v1.5 embeddings** with ChromaDB for high-quality semantic retrieval
-- **Powered by Groq (Llama 3.1 8B)** for fast inference
+- **Powered by Groq** for fast inference
 - **Document ingestion pipeline** via ingest.py - load and embed your own documents into ChromaDB with one command
 
 ---
@@ -62,7 +62,7 @@ LangGraph State Machine
 |---|---|
 | Orchestration | LangGraph |
 | Multi-Agent | CrewAI |
-| LLM | Groq (Llama 3.1 8B) |
+| LLM | Groq (gpt-oss-120b,gpt-oss-20b) |
 | Embeddings | BGE-M3 |
 | Vector DB | ChromaDB |
 | Evaluation | Ragas |
