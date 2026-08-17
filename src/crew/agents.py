@@ -7,13 +7,12 @@ from crewai import Agent, Crew, LLM
 from .tasks import get_verification_tasks
 
 critic_llm = LLM(
-    model="groq/llama-3.1-8b-instant", 
+    model="groq/openai/gpt-oss-20b",
     api_key=os.getenv("GROQ_API_KEY"),
     temperature=0.1  
 )
-
 writer_llm = LLM(
-    model="groq/llama-3.1-8b-instant",
+    model="groq/openai/gpt-oss-20b",
     api_key=os.getenv("GROQ_API_KEY"),
     temperature=0.0  
 )
