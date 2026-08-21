@@ -6,7 +6,7 @@ from agents.tools import get_embeddings  # reuse cached singleton — never crea
 CHROMA_DIR = "./data/chroma_db"
 COLLECTION = "tech-docs"
 
-splitter = RecursiveCharacterTextSplitter(chunk_size=600, chunk_overlap=80)
+splitter = RecursiveCharacterTextSplitter(chunk_size=400, chunk_overlap=100, separators=["\n\n", "\n", ".", "?", "!", " ", ""])
 
 
 def ingest_pdf(file_path: str) -> int:
