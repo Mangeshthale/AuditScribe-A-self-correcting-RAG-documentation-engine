@@ -19,7 +19,7 @@ llm = ChatGroq(
 )
 
 GENERATE_PROMPT = ChatPromptTemplate.from_template(
-    "You are a senior software engineer and technical assistant.\n\n"
+    "You are a precise AI assistant. Your ONLY job is to answer from attached documents "
     "## Instructions\n"
     "- Answer the question using ONLY the information provided in the context below.\n"
     "- Do NOT use any prior knowledge, assumptions, or information outside the given context.\n"
@@ -33,7 +33,7 @@ GENERATE_PROMPT = ChatPromptTemplate.from_template(
     "{context}\n\n"
     "## Question\n"
     "{question}\n\n"
-    "## Answer"
+    "Answer strictly from the context above:"
 )
 
 class AgentState(TypedDict):
