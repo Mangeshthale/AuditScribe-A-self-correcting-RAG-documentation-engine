@@ -20,7 +20,12 @@ def get_retriever():
         embedding_function=get_embeddings(),
         collection_name="tech-docs"
     )
-    return vectorstore.as_retriever(search_kwargs={"k": 5})
+    return vectorstore.as_retriever(search_type="similarity_score_threshold",  # filter weak matches
+        search_kwargs={
+            "k": 8,              # retrieve more
+            "score_threshold": 0.3   # only if similarity > 30%
+        }
+        )
 
 
 # Used as fallback in graph.py when vector DB has no relevant results
