@@ -349,7 +349,16 @@ for key, default in [
     if key not in st.session_state:
         st.session_state[key] = default
 
+import threading
 
+def wake_backend():
+    try:
+        requests.get(f"{API_URL}/health", timeout=5)
+    except Exception:
+        pass  # silently ignore — just a warm-up ping
+
+# Fire and forget on every page load
+threading.Thread(target=wake_backend, daemon=True).start()
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def score_cls(v):
     if v is None: return ""
