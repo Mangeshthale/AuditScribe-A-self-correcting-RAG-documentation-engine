@@ -6,8 +6,13 @@ import sys
 # Force the standard asyncio event loop on all platforms.
 if sys.platform != "win32":
     asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
+
 import time
 import os
+import math
+from functools import lru_cache
+from typing import Any, List, Optional
+
 from ragas import evaluate
 from ragas.metrics import Faithfulness, AnswerRelevancy
 from ragas.llms import LangchainLLMWrapper
@@ -16,8 +21,6 @@ from langchain_groq import ChatGroq
 from langchain_core.messages import BaseMessage
 from langchain_core.outputs import ChatResult
 from datasets import Dataset
-from typing import Any, List, Optional
-from agents.tools import get_embeddings
 
 
 class GroqSafeLLM(ChatGroq):
@@ -44,7 +47,7 @@ class GroqSafeLLM(ChatGroq):
         kwargs.pop("n", None)
         kwargs["n"] = 1
         return await super()._agenerate(messages, stop=stop, run_manager=run_manager, **kwargs)
-    
+
     def _get_invocation_params(self, **kwargs):
         params = super()._get_invocation_params(**kwargs)
         params.pop("n", None)
@@ -52,18 +55,33 @@ class GroqSafeLLM(ChatGroq):
         return params
 
 
-# Initialised once at module load — not per call
-_groq_llm = LangchainLLMWrapper(
-    GroqSafeLLM(
-        model="openai/gpt-oss-120b",
-        api_key=os.getenv("GROQ_API_KEY"),
-        temperature=0,
-        max_tokens=4096,
+# ── All heavy objects are lazy — loaded on first eval call, cached after ──────
+# This means uvicorn starts instantly and Render sees the port immediately.
+
+@lru_cache(maxsize=1)
+def _get_ragas_llm():
+    return LangchainLLMWrapper(
+        GroqSafeLLM(
+            model="openai/gpt-oss-120b",
+            api_key=os.getenv("GROQ_API_KEY"),
+            temperature=0,
+            max_tokens=4096,
+        )
     )
-)
-_embeddings = LangchainEmbeddingsWrapper(get_embeddings())
-_faithfulness_metric = Faithfulness(llm=_groq_llm)
-_relevancy_metric = AnswerRelevancy(llm=_groq_llm, embeddings=_embeddings)
+
+
+@lru_cache(maxsize=1)
+def _get_ragas_embeddings():
+    # Import here — not at top level — so tools.py model load is also deferred
+    from agents.tools import get_embeddings
+    return LangchainEmbeddingsWrapper(get_embeddings())
+
+
+@lru_cache(maxsize=1)
+def _get_metrics():
+    llm = _get_ragas_llm()
+    emb = _get_ragas_embeddings()
+    return Faithfulness(llm=llm), AnswerRelevancy(llm=llm, embeddings=emb)
 
 
 def run_evals(questions, answers, contexts):
@@ -82,9 +100,11 @@ def run_evals(questions, answers, contexts):
         "retrieved_contexts": safe_contexts,
     })
 
+    faithfulness_metric, relevancy_metric = _get_metrics()
+
     results = evaluate(
         dataset,
-        metrics=[_faithfulness_metric, _relevancy_metric],
+        metrics=[faithfulness_metric, relevancy_metric],
     )
 
     def _scalar(val):
@@ -92,7 +112,7 @@ def run_evals(questions, answers, contexts):
             return float(sum(val) / len(val)) if val else 0.0
         try:
             f = float(val)
-            return 0.0 if f != f else f  # catch nan → 0.0
+            return 0.0 if (math.isnan(f) or math.isinf(f)) else f
         except Exception:
             return 0.0
 
