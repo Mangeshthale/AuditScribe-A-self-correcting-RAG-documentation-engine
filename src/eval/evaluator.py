@@ -58,7 +58,7 @@ _groq_llm = LangchainLLMWrapper(
         model="openai/gpt-oss-120b",
         api_key=os.getenv("GROQ_API_KEY"),
         temperature=0,
-        max_tokens=4096
+        max_tokens=4096,
     )
 )
 _embeddings = LangchainEmbeddingsWrapper(get_embeddings())
