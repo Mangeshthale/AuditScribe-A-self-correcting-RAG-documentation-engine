@@ -3,14 +3,13 @@ import os
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
+
 load_dotenv()
+
 from langgraph.graph import StateGraph, END
 from typing import TypedDict, List
 from utils.rate_limit import groq_retry_decorator
 from agents.tools import get_retriever, get_web_search_tool
-
-# ── DO NOT instantiate get_web_search_tool() here at module level ──
-# It reads TAVILY_API_KEY at call time, so keep it inside retrieve()
 
 llm = ChatGroq(
     model="openai/gpt-oss-120b",
@@ -18,93 +17,104 @@ llm = ChatGroq(
     temperature=0
 )
 
+# ── Clean prompt — no NOT_FOUND_IN_DOCS, no "technical" trigger ──────────────
 GENERATE_PROMPT = ChatPromptTemplate.from_template(
-    "You are a precise AI assistant. Your ONLY job is to answer from attached documents "
-    "## Instructions\n"
-    "- Answer the question using ONLY the information provided in the context below.\n"
-    "- Do NOT use any prior knowledge, assumptions, or information outside the given context.\n"
-    "- If the context does not contain enough information to answer the question confidently, "
-    "respond with exactly: 'NOT_FOUND_IN_DOCS' — do not guess or fabricate an answer.\n"
-    "- If 'NOT_FOUND_IN_DOCS' is returned, a web search (Tavily) will be triggered automatically as a fallback.\n"
-    "- Be concise, precise, and technical. Avoid filler phrases like 'Based on the context...'.\n"
-    "- If the answer is partial (some info found, some missing), share what you found "
-    "and clearly flag the gaps.\n\n"
-    "## Context (from attached documents)\n"
+    "You are a helpful assistant. Answer the user's question directly and clearly.\n\n"
+    "## Previous Conversation\n"
+    "{history}\n\n"
+    "## Context\n"
     "{context}\n\n"
     "## Question\n"
     "{question}\n\n"
-    "Answer strictly from the context above:"
+    "Answer using only the context above. Be direct and concise. "
+    "If the context does not contain the answer, say in one sentence: "
+    "'I could not find this in the provided content.'"
 )
+
 
 class AgentState(TypedDict):
     question: str
     generation: str
     documents: List[str]
     iterations: int
+    history: str
+    source: str   # "docs" or "web" — set during retrieval, used in api.py
 
+
+# ── Nodes ─────────────────────────────────────────────────────────────────────
 def retrieve(state):
     print("---RETRIEVING---")
     retriever = get_retriever()
     docs = retriever.invoke(state["question"])
     chunks = [d.page_content for d in docs]
 
-    # If vector DB returns nothing useful, fall back to Tavily web search
-    if not chunks or all(len(c.strip()) < 50 for c in chunks):
-        print("---VECTOR DB EMPTY, FALLING BACK TO WEB SEARCH---")
-        # Instantiated here — TAVILY_API_KEY is guaranteed to be in env by now
+    # Only use doc chunks if they are actually meaningful
+    useful = [c for c in chunks if len(c.strip()) > 50]
+
+    if useful:
+        print(f"---FOUND {len(useful)} USEFUL CHUNKS FROM DOCS---")
+        return {
+            "documents": useful,
+            "source": "docs",
+            "iterations": state["iterations"] + 1
+        }
+
+    # Nothing useful in vector DB — go straight to Tavily
+    print("---NO USEFUL CHUNKS FOUND, FALLING BACK TO TAVILY---")
+    try:
         web_results = get_web_search_tool().invoke(state["question"])
         if isinstance(web_results, list):
-            chunks = [r.get("content", "") for r in web_results]
+            web_chunks = [r.get("content", "") for r in web_results]
         else:
-            chunks = [str(web_results)]
+            web_chunks = [str(web_results)]
+    except Exception as e:
+        print(f"---TAVILY FAILED: {e}---")
+        web_chunks = ["No content could be retrieved from web search."]
 
-    return {"documents": chunks, "iterations": state["iterations"] + 1}
+    return {
+        "documents": web_chunks,
+        "source": "web",
+        "iterations": state["iterations"] + 1
+    }
+
 
 def grade_documents(state):
-    if state["documents"] and state["iterations"] < 2:
-        return "generate"
+    # Always generate — retrieval already handled the docs vs web decision
     return "generate"
+
 
 @groq_retry_decorator
 def call_llm(state):
-    context = "\n\n".join(state["documents"]) if state["documents"] else "No context found."
+    context = "\n\n".join(state["documents"]) if state["documents"] else "No context available."
+    history = state.get("history", "") or "No previous conversation."
     chain = GENERATE_PROMPT | llm
-    response = chain.invoke({"context": context, "question": state["question"]})
+    response = chain.invoke({
+        "context": context,
+        "question": state["question"],
+        "history": history,
+    })
     return response.content
+
 
 def generate(state):
     print("---GENERATING---")
     answer = call_llm(state)
-    return {"generation": answer, "documents": state["documents"]}
+    return {
+        "generation": answer,
+        "documents": state["documents"],
+        "source": state.get("source", "docs")
+    }
 
-# Add this new node
-def web_search_fallback(state):
-    print("---NOT FOUND IN DOCS, FALLING BACK TO WEB SEARCH---")
-    web_results = get_web_search_tool().invoke(state["question"])
-    if isinstance(web_results, list):
-        chunks = [r.get("content", "") for r in web_results]
-    else:
-        chunks = [str(web_results)]
-    return {"documents": chunks}
 
-# Add routing after generate
-def route_after_generate(state):
-    if "NOT_FOUND_IN_DOCS" in state["generation"] and state["iterations"] < 2:
-        return "web_search"
-    return "end"
-
-# Update workflow
+# ── Graph ─────────────────────────────────────────────────────────────────────
 workflow = StateGraph(AgentState)
 workflow.add_node("retrieve", retrieve)
 workflow.add_node("generate", generate)
-workflow.add_node("web_search", web_search_fallback)
+
 workflow.set_entry_point("retrieve")
 workflow.add_conditional_edges("retrieve", grade_documents, {
     "generate": "generate"
 })
-workflow.add_conditional_edges("generate", route_after_generate, {
-    "web_search": "web_search",
-    "end": END
-})
-workflow.add_edge("web_search", "generate")  # re-generate with web context
+workflow.add_edge("generate", END)
+
 app = workflow.compile()
