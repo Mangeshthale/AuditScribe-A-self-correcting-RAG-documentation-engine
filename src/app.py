@@ -4,7 +4,7 @@ import time
 import os
 import requests
 
-API_URL = os.getenv("API_URL", "http://localhost:8000")
+API_URL = st.secrets.get("API_URL", "http://localhost:8000")
 
 st.set_page_config(
     page_title="AuditScribe",
