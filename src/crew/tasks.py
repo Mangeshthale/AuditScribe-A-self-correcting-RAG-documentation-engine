@@ -4,12 +4,11 @@ from crewai import Task
 
 def get_verification_tasks(raw_answer, critic_agent, writer_agent):
     """
-    Critic: validates facts silently and outputs only verified content.
+    Critic: validates facts silently, outputs only verified content.
     Writer: formats that verified content into clean Markdown.
     Question is NOT passed — Writer's job is formatting only, not re-answering.
     """
 
-    # Critic outputs clean verified facts — no headers, no conclusions, no meta-commentary
     validation_task = Task(
         description=(
             f"Review the following answer for factual accuracy:\n\n"
@@ -19,7 +18,7 @@ def get_verification_tasks(raw_answer, critic_agent, writer_agent):
             "Do NOT write headers, section titles, 'Conclusion', 'Summary', "
             "or any meta-commentary about the review process. "
             "Do NOT add information that was not in the original answer. "
-            "If there is a single factual error that cannot be corrected, "
+            "If there is a factual error that cannot be corrected, "
             "add one short note at the end: 'Note: [issue]'."
         ),
         expected_output=(
@@ -29,7 +28,6 @@ def get_verification_tasks(raw_answer, critic_agent, writer_agent):
         agent=critic_agent
     )
 
-    # Writer formats the verified content — does not re-answer, does not add new info
     formatting_task = Task(
         description=(
             "Take the verified content from the previous step and format it "
