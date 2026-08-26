@@ -17,7 +17,7 @@ llm = ChatGroq(
     temperature=0
 )
 
-# ── Clean prompt — no NOT_FOUND_IN_DOCS, no "technical" trigger ──────────────
+# ── Clean prompt — no NOT_FOUND_IN_DOCS, no "technical" trigger word ─────────
 GENERATE_PROMPT = ChatPromptTemplate.from_template(
     "You are a helpful assistant. Answer the user's question directly and clearly.\n\n"
     "## Previous Conversation\n"
@@ -37,11 +37,10 @@ class AgentState(TypedDict):
     generation: str
     documents: List[str]
     iterations: int
-    history: str
-    source: str   # "docs" or "web" — set during retrieval, used in api.py
+    history: str    # conversation history as formatted string
+    source: str     # "docs" or "web"
 
 
-# ── Nodes ─────────────────────────────────────────────────────────────────────
 def retrieve(state):
     print("---RETRIEVING---")
     retriever = get_retriever()
@@ -59,7 +58,7 @@ def retrieve(state):
             "iterations": state["iterations"] + 1
         }
 
-    # Nothing useful in vector DB — go straight to Tavily
+    # Nothing useful — fall back to Tavily web search
     print("---NO USEFUL CHUNKS FOUND, FALLING BACK TO TAVILY---")
     try:
         web_results = get_web_search_tool().invoke(state["question"])
@@ -69,7 +68,7 @@ def retrieve(state):
             web_chunks = [str(web_results)]
     except Exception as e:
         print(f"---TAVILY FAILED: {e}---")
-        web_chunks = ["No content could be retrieved from web search."]
+        web_chunks = ["No content could be retrieved."]
 
     return {
         "documents": web_chunks,
@@ -79,7 +78,6 @@ def retrieve(state):
 
 
 def grade_documents(state):
-    # Always generate — retrieval already handled the docs vs web decision
     return "generate"
 
 
@@ -106,7 +104,6 @@ def generate(state):
     }
 
 
-# ── Graph ─────────────────────────────────────────────────────────────────────
 workflow = StateGraph(AgentState)
 workflow.add_node("retrieve", retrieve)
 workflow.add_node("generate", generate)
