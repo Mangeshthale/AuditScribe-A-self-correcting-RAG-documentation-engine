@@ -2,6 +2,7 @@
 import os
 import time
 from dotenv import load_dotenv
+
 load_dotenv()
 
 try:
@@ -17,6 +18,7 @@ from agents.graph import app as reasoning_graph
 from crew.agents import run_verification_crew
 from eval.evaluator import run_evals
 
+# Lighter model for suggestions — faster, cheaper
 _suggestion_llm = ChatGroq(
     model="openai/gpt-oss-20b",
     api_key=os.getenv("GROQ_API_KEY"),
@@ -47,9 +49,9 @@ def generate_suggestions(question: str, answer: str) -> list:
 
 def run_sentinel(user_query: str, chat_history: list = []):
     print(f"\n🚀 Starting AuditScribe for: {user_query}")
-    time.sleep(2)
+    time.sleep(2)  # reduced from 3
 
-    # Build readable history string
+    # Build readable history string for the LLM
     history_text = ""
     for msg in chat_history:
         role = "User" if msg["role"] == "user" else "Assistant"
@@ -61,7 +63,7 @@ def run_sentinel(user_query: str, chat_history: list = []):
         "documents": [],
         "generation": "",
         "history": history_text.strip(),
-        "source": "docs"   # default — retrieve() will override this
+        "source": "docs"
     }
 
     graph_output = reasoning_graph.invoke(initial_state)
