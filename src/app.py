@@ -2,9 +2,9 @@
 import streamlit as st
 import time
 import os
-import requests
-
-API_URL = st.secrets.get("API_URL", "http://localhost:8000")
+import tempfile
+from main import run_sentinel
+from ingest import ingest_pdf, ingest_url
 
 st.set_page_config(
     page_title="AuditScribe",
@@ -47,6 +47,7 @@ html, body, [class*="css"] {
     color: var(--ink) !important;
 }
 
+/* Extra bottom padding so chat input doesn't overlap content */
 .block-container {
     padding: 2rem 2.5rem 8rem !important;
     max-width: 960px !important;
@@ -126,6 +127,7 @@ html, body, [class*="css"] {
 }
 [data-testid="stSidebar"] .stButton > button:hover {
     border-color: var(--accent) !important;
+    background: rgba(240,165,0,0.06) !important;
 }
 [data-testid="stSidebar"] .stTextInput > div > div > input {
     background: var(--sb-surface) !important;
@@ -134,6 +136,9 @@ html, body, [class*="css"] {
     color: var(--sb-text-hi) !important;
     font-family: 'DM Sans', sans-serif !important;
     font-size: 0.82rem !important;
+}
+[data-testid="stSidebar"] .stTextInput > div > div > input::placeholder {
+    color: var(--ink-3) !important;
 }
 [data-testid="stSidebar"] .stTabs [data-baseweb="tab-list"] {
     background: transparent !important;
@@ -199,7 +204,6 @@ html, body, [class*="css"] {
     font-size: 0.95rem;
     color: var(--ink);
 }
-
 .msg-assistant {
     background: var(--card);
     border: 1.5px solid var(--border);
@@ -211,7 +215,7 @@ html, body, [class*="css"] {
     line-height: 1.7;
 }
 
-/* Source badge */
+/* ── Source badge ── */
 .source-badge {
     display: inline-block;
     font-family: 'DM Mono', monospace;
@@ -233,7 +237,7 @@ html, body, [class*="css"] {
     border: 1px solid rgba(240,165,0,0.3);
 }
 
-/* ── Chat input ── */
+/* ── Chat input — Streamlit anchors this to bottom automatically ── */
 [data-testid="stChatInput"] {
     background: var(--card) !important;
     border: 1.5px solid var(--border) !important;
@@ -327,11 +331,7 @@ html, body, [class*="css"] {
     text-align: right;
 }
 
-.stAlert {
-    border-radius: 8px !important;
-    font-family: 'DM Sans', sans-serif !important;
-    font-size: 0.85rem !important;
-}
+.stAlert { border-radius: 8px !important; font-family: 'DM Sans', sans-serif !important; font-size: 0.85rem !important; }
 .stSpinner > div { border-top-color: var(--accent) !important; }
 .stCaption { color: var(--ink-3) !important; font-size: 0.78rem !important; }
 </style>
@@ -343,22 +343,13 @@ for key, default in [
     ("faith_score", None), ("rel_score", None),
     ("latency", None), ("report", None),
     ("ingest_log", []),
-    ("messages", []),
-    ("suggestions", []),
+    ("messages", []),       # full chat history {role, content, faith, rel, source}
+    ("suggestions", []),    # current 3 suggested questions
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
 
-import threading
 
-def wake_backend():
-    try:
-        requests.get(f"{API_URL}/health", timeout=5)
-    except Exception:
-        pass  # silently ignore — just a warm-up ping
-
-# Fire and forget on every page load
-threading.Thread(target=wake_backend, daemon=True).start()
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def score_cls(v):
     if v is None: return ""
@@ -428,15 +419,13 @@ with st.sidebar:
         if st.button("Ingest PDF", key="ingest_pdf_btn", use_container_width=True):
             if uploaded_file:
                 with st.spinner("Chunking & embedding…"):
-                    res = requests.post(
-                        f"{API_URL}/ingest/pdf",
-                        files={"file": (uploaded_file.name, uploaded_file.read(), "application/pdf")}
-                    )
-                    data = res.json()
-                st.success(f"✓ {data['chunks']} chunks added")
-                st.session_state.ingest_log.append(
-                    f"PDF · {uploaded_file.name} · {data['chunks']} chunks"
-                )
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                        tmp.write(uploaded_file.read())
+                        tmp_path = tmp.name
+                    n = ingest_pdf(tmp_path)
+                    os.unlink(tmp_path)
+                st.success(f"✓ {n} chunks added")
+                st.session_state.ingest_log.append(f"PDF · {uploaded_file.name} · {n} chunks")
             else:
                 st.warning("Upload a PDF first.")
 
@@ -445,12 +434,9 @@ with st.sidebar:
         if st.button("Ingest URL", key="ingest_url_btn", use_container_width=True):
             if url_input.startswith("http"):
                 with st.spinner("Scraping & embedding…"):
-                    res = requests.post(f"{API_URL}/ingest/url", params={"url": url_input})
-                    data = res.json()
-                st.success(f"✓ {data['chunks']} chunks added")
-                st.session_state.ingest_log.append(
-                    f"URL · {url_input[:40]}… · {data['chunks']} chunks"
-                )
+                    n = ingest_url(url_input)
+                st.success(f"✓ {n} chunks added")
+                st.session_state.ingest_log.append(f"URL · {url_input[:40]}… · {n} chunks")
             else:
                 st.warning("Enter a valid URL.")
 
@@ -497,11 +483,9 @@ for msg in st.session_state.messages:
         )
     else:
         st.markdown('<div class="msg-assistant">', unsafe_allow_html=True)
-        # Source badge
         if "source" in msg:
             st.markdown(source_badge(msg["source"]), unsafe_allow_html=True)
         st.markdown(msg["content"])
-        # Scores
         if "faith" in msg:
             st.markdown(scores_html(msg["faith"], msg["rel"]), unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
@@ -519,9 +503,10 @@ if st.session_state.suggestions:
                 st.rerun()
 
 
-# ── Chat input — anchors to bottom automatically ──────────────────────────────
+# ── Chat input — Streamlit anchors this to the bottom automatically ───────────
 query = st.chat_input("Ask a question about your documents…")
 
+# Handle suggestion click
 if "_pending_query" in st.session_state:
     query = st.session_state.pop("_pending_query")
 
@@ -537,33 +522,16 @@ if query:
 
     with st.spinner("AuditScribe is thinking…"):
         start_time = time.time()
-        try:
-            res = requests.post(
-                f"{API_URL}/audit/run",
-                json={
-                    "query": query,
-                    "history": st.session_state.messages[:-1]
-                }
-            )
-            if res.status_code != 200:
-                try:
-                    detail = res.json().get("detail", "Unknown error")
-                except Exception:
-                    detail = f"Server error {res.status_code} — check FastAPI terminal."
-                st.error(f"API error: {detail}")
-                st.stop()
+        # Pass full history except current message for memory
+        report, scores, suggestions, source = run_sentinel(
+            query,
+            chat_history=st.session_state.messages[:-1]
+        )
+        total_time = round(time.time() - start_time, 2)
 
-            data = res.json()
-        except requests.exceptions.ConnectionError:
-            st.error("Cannot connect to the API. Make sure the FastAPI server is running on port 8000.")
-            st.stop()
-
-    report_text  = data["report"]
-    faith        = data.get("faithfulness", 0.0)
-    rel          = data.get("answer_relevancy", 0.0)
-    suggestions  = data.get("suggestions", [])
-    source       = data.get("source", "docs")
-    total_time   = round(data.get("latency", time.time() - start_time), 2)
+    report_text = str(report.raw if hasattr(report, "raw") else report)
+    faith = float(scores.get("faithfulness", 0.0))
+    rel   = float(scores.get("answer_relevancy", 0.0))
 
     # Render assistant message — no icon
     st.markdown('<div class="msg-assistant">', unsafe_allow_html=True)
@@ -588,10 +556,10 @@ if query:
         "rel": rel,
         "source": source,
     })
-    st.session_state.faith_score = faith
-    st.session_state.rel_score   = rel
-    st.session_state.latency     = total_time
-    st.session_state.report      = report_text
-    st.session_state.suggestions = suggestions
+    st.session_state.faith_score  = faith
+    st.session_state.rel_score    = rel
+    st.session_state.latency      = total_time
+    st.session_state.report       = report_text
+    st.session_state.suggestions  = suggestions
 
     st.rerun()
