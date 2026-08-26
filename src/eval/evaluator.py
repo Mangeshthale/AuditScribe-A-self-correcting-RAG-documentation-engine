@@ -2,8 +2,6 @@
 import asyncio
 import sys
 
-# nest_asyncio (used by ragas) can't patch uvloop.
-# Force the standard asyncio event loop on all platforms.
 if sys.platform != "win32":
     asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
 
@@ -55,8 +53,7 @@ class GroqSafeLLM(ChatGroq):
         return params
 
 
-# ── All heavy objects are lazy — loaded on first eval call, cached after ──────
-# This means uvicorn starts instantly and Render sees the port immediately.
+# ── All heavy objects are lazy — only created on first eval call ──────────────
 
 @lru_cache(maxsize=1)
 def _get_ragas_llm():
@@ -72,7 +69,6 @@ def _get_ragas_llm():
 
 @lru_cache(maxsize=1)
 def _get_ragas_embeddings():
-    # Import here — not at top level — so tools.py model load is also deferred
     from agents.tools import get_embeddings
     return LangchainEmbeddingsWrapper(get_embeddings())
 
@@ -85,7 +81,7 @@ def _get_metrics():
 
 
 def run_evals(questions, answers, contexts):
-    time.sleep(2)  # Groq free-tier RPM buffer
+    time.sleep(2)
 
     safe_contexts = []
     for ctx in contexts:
